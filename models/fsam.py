@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .fast_attention import enable_fast_attention
 from .fsam_encoder import FSAMEncoder
 from .prompt_generator import AutomatedPromptGenerator
 from .sam_builder import build_sam_parts
@@ -14,9 +15,11 @@ class FSAM(nn.Module):
 
     def __init__(self, img_size: int, num_classes: int, checkpoint: str | None = None,
                  lora_rank: int = 4, num_prototypes: int = 256, similarity: str = "cosine",
-                 grad_checkpoint: bool = False, fft_shift: bool = False):
+                 grad_checkpoint: bool = False, fft_shift: bool = False, fast_attention: bool = True):
         super().__init__()
         image_encoder, prompt_encoder, mask_decoder = build_sam_parts(img_size, num_classes, checkpoint)
+        if fast_attention:  # fused SDPA, numerically equivalent (tests/test_fast_attention.py)
+            enable_fast_attention(image_encoder)
         self.img_size = img_size
         self.num_classes = num_classes
         self.encoder = FSAMEncoder(image_encoder, lora_rank=lora_rank, grad_checkpoint=grad_checkpoint,

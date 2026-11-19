@@ -1,0 +1,21 @@
+# Source paper (not redistributed)
+SAM_02.pdf
+*.pdf
+
+# Upstream reference code (inspected, not tracked)
+_reference_dapsam/
+
+# Environment
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Large artifacts
+pretrained/*.pth
+data_raw/
+data_processed/
+outputs/
+runs/
+*.pth
+*.pt

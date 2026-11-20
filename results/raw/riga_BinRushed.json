@@ -1,0 +1,29 @@
+{
+  "run": "riga_BinRushed",
+  "checkpoint": "last_model.pth",
+  "epoch": 159,
+  "source": "BinRushed",
+  "dataset": "riga",
+  "results": {
+    "MESSIDOR_Base1": {
+      "OD": 96.33250072318371,
+      "OC": 88.13959129799545,
+      "n_images": 35
+    },
+    "MESSIDOR_Base2": {
+      "OD": 96.67970740149921,
+      "OC": 84.68702875265414,
+      "n_images": 30
+    },
+    "MESSIDOR_Base3": {
+      "OD": 96.34249926219283,
+      "OC": 86.38395329410184,
+      "n_images": 27
+    },
+    "Average": {
+      "OD": 96.45156912895858,
+      "OC": 86.40352444825048
+    }
+  },
+  "evaluated_at": "2026-11-19T21:58:39.791024"
+}

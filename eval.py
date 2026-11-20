@@ -32,9 +32,9 @@ PAPER_T1 = {  # FSAM rows of Table 1 (OD, OC) per target + average
 PAPER_T2 = {"A": 86.16, "B": 82.52, "C": 74.98, "D": 86.44, "E": 83.14, "F": 83.19, "Average": 82.74}
 
 
-def load_model(run):
+def load_model(run, which="selected"):
     cfg = json.load(open(os.path.join(run, "config.json")))
-    name = "last_model.pth" if cfg["dataset"] == "riga" else "best_model.pth"
+    name = "last_model.pth" if (cfg["dataset"] == "riga" or which == "last") else "best_model.pth"
     ck = torch.load(os.path.join(run, name), map_location="cpu", weights_only=False)
     model = FSAM(cfg["img_size"], cfg["num_classes"], cfg["ckpt"], lora_rank=cfg["lora_rank"],
                  num_prototypes=cfg["num_prototypes"], similarity=cfg["similarity"])
@@ -84,22 +84,22 @@ def eval_prostate(model, cfg):
     return res
 
 
-def evaluate_run(run):
-    model, cfg, ck_name, epoch = load_model(run)
+def evaluate_run(run, which="selected"):
+    model, cfg, ck_name, epoch = load_model(run, which)
     res = eval_riga(model, cfg) if cfg["dataset"] == "riga" else eval_prostate(model, cfg)
     out = {"run": os.path.basename(run), "checkpoint": ck_name, "epoch": epoch, "source": cfg["source"],
            "dataset": cfg["dataset"], "results": res, "evaluated_at": datetime.datetime.now().isoformat()}
-    with open(os.path.join(run, "results.json"), "w") as f:
+    with open(os.path.join(run, "results.json" if which == "selected" else f"results_{which}.json"), "w") as f:
         json.dump(out, f, indent=2)
     print(json.dumps(out, indent=2))
     return out
 
 
-def _load_results(dataset):
+def _load_results(dataset, fname="results.json"):
     out = {}
     od = os.path.join(ROOT, "outputs")
     for r in sorted(os.listdir(od)) if os.path.isdir(od) else []:
-        p = os.path.join(od, r, "results.json")
+        p = os.path.join(od, r, fname)
         if os.path.exists(p):
             d = json.load(open(p))
             if d["dataset"] == dataset:
@@ -130,6 +130,7 @@ def generate_report():
     open(os.path.join(ROOT, "results", "table1_riga_reproduction.md"), "w").write("\n".join(L) + "\n")
 
     pro = _load_results("prostate")
+    pro_last = _load_results("prostate", "results_last.json")
     letters = list(PROSTATE_SITES)
     L = ["# Table 2 reproduction — multi-site prostate (DSC %)", "",
          "Each column: trained on that site (90% cases, best epoch on the 10% in-domain validation cases),",
@@ -138,14 +139,16 @@ def generate_report():
          "| Row | " + " | ".join(f"{l} ({PROSTATE_SITES[l]})" for l in letters) + " | Average |",
          "|---|" + "---|" * 7]
 
-    def row(name, key):
-        vals = [pro[l]["results"][key] if l in pro else None for l in letters]
+    def row(name, key, src=pro):
+        vals = [src[l]["results"][key] if l in src else None for l in letters]
         got = [v for v in vals if v is not None]
         avg = f"{np.mean(got):.2f}" if len(got) == 6 else ("partial" if got else "—")
         return f"| {name} | " + " | ".join(f"{v:.2f}" if v is not None else "—" for v in vals) + f" | {avg} |"
 
     L.append(row("Reproduced", "mean_over_cases"))
     L.append(row("Reproduced (per-domain mean)", "mean_over_domains"))
+    if pro_last:
+        L.append(row("Supplementary: final epoch-160 checkpoint (not used for selection)", "mean_over_cases", pro_last))
     L.append("| Paper | " + " | ".join(f"{PAPER_T2[l]:.2f}" for l in letters) + f" | {PAPER_T2['Average']:.2f} |")
     L += ["", "## Per-target breakdown (DSC %)", ""]
     for l in letters:
@@ -161,9 +164,11 @@ def generate_report():
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--run", nargs="*", default=[])
+    p.add_argument("--checkpoint", default="selected", choices=["selected", "last"],
+                   help="selected = protocol checkpoint (RIGA+: last, prostate: best in-domain val)")
     p.add_argument("--generate_report", action="store_true")
     a = p.parse_args()
     for r in a.run:
-        evaluate_run(r)
+        evaluate_run(r, a.checkpoint)
     if a.generate_report:
         generate_report()

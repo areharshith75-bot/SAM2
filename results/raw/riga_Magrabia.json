@@ -1,0 +1,29 @@
+{
+  "run": "riga_Magrabia",
+  "checkpoint": "last_model.pth",
+  "epoch": 159,
+  "source": "Magrabia",
+  "dataset": "riga",
+  "results": {
+    "MESSIDOR_Base1": {
+      "OD": 96.3020566323996,
+      "OC": 86.58408875305744,
+      "n_images": 35
+    },
+    "MESSIDOR_Base2": {
+      "OD": 96.67355154868004,
+      "OC": 87.50084977345142,
+      "n_images": 30
+    },
+    "MESSIDOR_Base3": {
+      "OD": 96.44897316719891,
+      "OC": 87.3096878024084,
+      "n_images": 27
+    },
+    "Average": {
+      "OD": 96.47486044942617,
+      "OC": 87.1315421096391
+    }
+  },
+  "evaluated_at": "2026-11-19T22:18:31.533338"
+}

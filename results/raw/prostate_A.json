@@ -1,0 +1,32 @@
+{
+  "run": "prostate_A",
+  "checkpoint": "best_model.pth",
+  "epoch": 114,
+  "source": "A",
+  "dataset": "prostate",
+  "results": {
+    "BMC": {
+      "Dice": 86.10880635695452,
+      "n_cases": 30
+    },
+    "I2CVB": {
+      "Dice": 82.97076424138801,
+      "n_cases": 19
+    },
+    "UCL": {
+      "Dice": 87.88099629762024,
+      "n_cases": 13
+    },
+    "BIDMC": {
+      "Dice": 63.233286124986634,
+      "n_cases": 12
+    },
+    "HK": {
+      "Dice": 88.18804780044516,
+      "n_cases": 12
+    },
+    "mean_over_cases": 82.78160081708435,
+    "mean_over_domains": 81.67638016427891
+  },
+  "evaluated_at": "2026-11-20T01:44:56.119027"
+}

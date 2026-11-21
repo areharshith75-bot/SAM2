@@ -37,7 +37,8 @@ def load_model(run, which="selected"):
     name = "last_model.pth" if (cfg["dataset"] == "riga" or which == "last") else "best_model.pth"
     ck = torch.load(os.path.join(run, name), map_location="cpu", weights_only=False)
     model = FSAM(cfg["img_size"], cfg["num_classes"], cfg["ckpt"], lora_rank=cfg["lora_rank"],
-                 num_prototypes=cfg["num_prototypes"], similarity=cfg["similarity"])
+                 num_prototypes=cfg["num_prototypes"], similarity=cfg["similarity"],
+                 freq_mode=cfg.get("freq_mode", "global"))
     missing, unexpected = model.load_state_dict(ck["model"], strict=False)
     assert not unexpected, unexpected
     trainable = {n for n, p in model.named_parameters() if p.requires_grad}
@@ -45,10 +46,17 @@ def load_model(run, which="selected"):
     return model.cuda().eval(), cfg, name, ck.get("epoch")
 
 
+TTA = False  # set by --tta: average the prediction with a horizontally flipped copy (extension)
+
+
 @torch.no_grad()
 def predict(model, x):
+    x = x.cuda(non_blocking=True)
     with torch.autocast("cuda", dtype=torch.bfloat16):
-        return torch.sigmoid(model(x.cuda(non_blocking=True)).float()).cpu()
+        p = torch.sigmoid(model(x).float())
+        if TTA:
+            p = 0.5 * (p + torch.sigmoid(model(x.flip(-1)).float()).flip(-1))
+    return p.cpu()
 
 
 def eval_riga(model, cfg):
@@ -89,7 +97,11 @@ def evaluate_run(run, which="selected"):
     res = eval_riga(model, cfg) if cfg["dataset"] == "riga" else eval_prostate(model, cfg)
     out = {"run": os.path.basename(run), "checkpoint": ck_name, "epoch": epoch, "source": cfg["source"],
            "dataset": cfg["dataset"], "results": res, "evaluated_at": datetime.datetime.now().isoformat()}
-    with open(os.path.join(run, "results.json" if which == "selected" else f"results_{which}.json"), "w") as f:
+    out["tta"] = TTA
+    fname = "results.json" if which == "selected" else f"results_{which}.json"
+    if TTA:
+        fname = fname.replace(".json", "_tta.json")
+    with open(os.path.join(run, fname), "w") as f:
         json.dump(out, f, indent=2)
     print(json.dumps(out, indent=2))
     return out
@@ -100,6 +112,9 @@ def _load_results(dataset, fname="results.json"):
     od = os.path.join(ROOT, "outputs")
     for r in sorted(os.listdir(od)) if os.path.isdir(od) else []:
         p = os.path.join(od, r, fname)
+        cfgp = os.path.join(od, r, "config.json")
+        if os.path.exists(cfgp) and json.load(open(cfgp)).get("freq_mode", "global") != "global":
+            continue  # extension runs are reported by analysis/, not in the paper-reproduction tables
         if os.path.exists(p):
             d = json.load(open(p))
             if d["dataset"] == dataset:
@@ -166,8 +181,10 @@ if __name__ == "__main__":
     p.add_argument("--run", nargs="*", default=[])
     p.add_argument("--checkpoint", default="selected", choices=["selected", "last"],
                    help="selected = protocol checkpoint (RIGA+: last, prostate: best in-domain val)")
+    p.add_argument("--tta", action="store_true", help="flip test-time averaging (extension; writes *_tta.json)")
     p.add_argument("--generate_report", action="store_true")
     a = p.parse_args()
+    TTA = a.tta
     for r in a.run:
         evaluate_run(r, a.checkpoint)
     if a.generate_report:

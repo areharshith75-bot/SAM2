@@ -144,3 +144,19 @@ the per-domain-mean row averages the 5 site means instead.
 
 Per-run metrics, configs and training histories: `results/raw/`.
 
+
+## Extensions beyond the paper
+
+Implemented on top of the reproduction; full numbers in `results/extension_summary.md`.
+
+| Feature | How to use | Result (single seed) |
+|---|---|---|
+| Frequency Reliance Analyzer | `python -m analysis.frequency_reliance outputs/<run>` | The baseline FSAM ignores its frequency stream: swapping in another image's spectrum changes Dice by <= 0.1 on all 8 models |
+| Local (patch-wise) frequency adapter | `train.py --freq_mode local` | Same accuracy as the baseline, but the frequency branch is used (zeroing it costs 3-7 OC points vs. 0 for the baseline) |
+| Label-free failure warning | `python -m analysis.reliability outputs/<run>` | Flags prostate failures with AUROC 0.86-0.99; referring the 20 % most-flagged cases lifts the rest from 79.9 to ~84.0 Dice |
+| Corruption-robustness benchmark | `python -m analysis.corruption_benchmark outputs/<run>` | Sensitivity to noise / blur / shading / contrast comes through the image stream (frequency-only: <= 0.3 drop) |
+| GIN random-style augmentation | `train.py --style_aug gin` | Mixed: +1.35 to +1.78 (prostate, trained on BIDMC), +1.26 OC (Magrabia); -0.7 to -2.0 (I2CVB), -1.7 OC (BinRushed) |
+| Flip test-time averaging | `eval.py --tta` | +0.5 prostate average, +0.2 / +0.4 RIGA+ OC |
+| Qualitative figures | `python -m analysis.visualize outputs/<run>` | `results/figures/` |
+
+Extension runs: `scripts/run_extensions.sh`.

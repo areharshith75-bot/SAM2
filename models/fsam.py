@@ -15,7 +15,8 @@ class FSAM(nn.Module):
 
     def __init__(self, img_size: int, num_classes: int, checkpoint: str | None = None,
                  lora_rank: int = 4, num_prototypes: int = 256, similarity: str = "cosine",
-                 grad_checkpoint: bool = False, fft_shift: bool = False, fast_attention: bool = True):
+                 grad_checkpoint: bool = False, fft_shift: bool = False, fast_attention: bool = True,
+                 freq_mode: str = "global"):
         super().__init__()
         image_encoder, prompt_encoder, mask_decoder = build_sam_parts(img_size, num_classes, checkpoint)
         if fast_attention:  # fused SDPA, numerically equivalent (tests/test_fast_attention.py)
@@ -23,7 +24,7 @@ class FSAM(nn.Module):
         self.img_size = img_size
         self.num_classes = num_classes
         self.encoder = FSAMEncoder(image_encoder, lora_rank=lora_rank, grad_checkpoint=grad_checkpoint,
-                                   fft_shift=fft_shift)
+                                   fft_shift=fft_shift, freq_mode=freq_mode)
         self.prompt_generator = AutomatedPromptGenerator(256, num_prototypes, similarity)
         self.mask_decoder = mask_decoder  # trainable (IoU head is unused by the loss -> frozen)
         for p in self.mask_decoder.iou_prediction_head.parameters():
@@ -48,8 +49,8 @@ class FSAM(nn.Module):
         masks = (hyper @ up.view(bb, cc, hh * ww)).view(bb, -1, hh, ww)
         return masks, md.iou_prediction_head(hs[:, 0])
 
-    def forward(self, x: torch.Tensor):
-        emb = self.encoder(x)
+    def forward(self, x: torch.Tensor, x_freq: torch.Tensor | None = None):
+        emb = self.encoder(x, x_freq)
         dense = self.prompt_generator(emb)
         low_res, _ = self.decode(emb, dense)
         return F.interpolate(low_res, (x.shape[-2], x.shape[-1]), mode="bilinear", align_corners=False)

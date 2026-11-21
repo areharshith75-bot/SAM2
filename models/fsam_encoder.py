@@ -31,11 +31,11 @@ class FrequencyAdapter(nn.Module):
 
 class FSAMEncoder(nn.Module):
     def __init__(self, sam_image_encoder: nn.Module, lora_rank: int = 4, reduction_ratio: int = 4,
-                 grad_checkpoint: bool = False, fft_shift: bool = False):
+                 grad_checkpoint: bool = False, fft_shift: bool = False, freq_mode: str = "global"):
         super().__init__()
         enc = inject_lora(sam_image_encoder, r=lora_rank, alpha=lora_rank)
         self.img_size = enc.img_size
-        self.extractor = FrequencyExtractor(enc.patch_embed, enc.pos_embed, shift=fft_shift)
+        self.extractor = FrequencyExtractor(enc.patch_embed, enc.pos_embed, shift=fft_shift, mode=freq_mode)
         self.blocks = enc.blocks
         self.neck = enc.neck
         dim = enc.pos_embed.shape[-1]
@@ -43,8 +43,8 @@ class FSAMEncoder(nn.Module):
             [FrequencyAdapter(dim, reduction_ratio) for _ in range(len(self.blocks))])
         self.grad_checkpoint = grad_checkpoint
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        e_img, e_freq = self.extractor(x)
+    def forward(self, x: torch.Tensor, x_freq: torch.Tensor | None = None) -> torch.Tensor:
+        e_img, e_freq = self.extractor(x, x_freq)
         for blk, adapter in zip(self.blocks, self.freq_adapters):
             if self.grad_checkpoint and self.training:
                 h_img = checkpoint(blk, e_img, use_reentrant=False)

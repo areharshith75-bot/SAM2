@@ -23,6 +23,7 @@ from data.datasets import (PROSTATE_SITES, ProstateDataset, RIGADataset, prostat
 from models.fsam import FSAM
 from utils.losses import HybridSegmentationLoss
 from utils.metrics import CaseDice, riga_targets
+from utils.style_aug import gin
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -45,6 +46,11 @@ def get_args(argv=None):
     p.add_argument("--lora_rank", type=int, default=4)
     p.add_argument("--num_prototypes", type=int, default=256)
     p.add_argument("--similarity", default="cosine", choices=["cosine", "dot"])
+    p.add_argument("--style_aug", default="none", choices=["none", "gin"],
+                   help="extension: random-style (GIN) augmentation of training images")
+    p.add_argument("--style_p", type=float, default=0.5, help="fraction of training images re-styled")
+    p.add_argument("--freq_mode", default="global", choices=["global", "local"],
+                   help="global = paper (image-wide FFT); local = extension: per-patch FFT aligned with image tokens")
     p.add_argument("--eval_every", type=int, default=5, help="prostate in-domain validation interval (epochs)")
     p.add_argument("--num_workers", type=int, default=12)
     p.add_argument("--seed", type=int, default=1234)
@@ -122,7 +128,7 @@ def main(argv=None):
 
     # ---------------- model / optimiser
     model = FSAM(a.img_size, a.num_classes, a.ckpt, lora_rank=a.lora_rank, num_prototypes=a.num_prototypes,
-                 similarity=a.similarity, grad_checkpoint=a.grad_checkpoint).cuda().train()
+                 similarity=a.similarity, grad_checkpoint=a.grad_checkpoint, freq_mode=a.freq_mode).cuda().train()
     bd = model.trainable_parameter_breakdown()
     log.info(f"params: {bd}")
     params = [p for p in model.parameters() if p.requires_grad]
@@ -153,6 +159,8 @@ def main(argv=None):
         t0, run_loss = time.time(), []
         for x, y in loader:
             x = x.cuda(non_blocking=True)
+            if a.style_aug == "gin":
+                x = gin(x, p=a.style_p)
             y = riga_targets(y).cuda(non_blocking=True) if a.dataset == "riga" else y.cuda(non_blocking=True)
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
                 logits = model(x)
